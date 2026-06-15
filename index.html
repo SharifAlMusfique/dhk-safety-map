@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -29,7 +31,7 @@
     <div>
       <strong>Is someone in immediate danger? Call 999 now.</strong>
       <span>This website is not an emergency service. Submitting a report here does not contact police, medical, or fire assistance.</span>
-      <span lang="bn">কেউ তাৎক্ষণিক বিপদে আছেন? এখনই ৯৯৯ নম্বরে কল করুন। এই ওয়েবসাইট জরুরি সহায়তা প্রদান করে না।</span>
+      <span lang="bn">&#2453;&#2503;&#2441; &#2468;&#2494;&#2510;&#2509;&#2453;&#2509;&#2487;&#2467;&#2495;&#2453; &#2476;&#2495;&#2474;&#2470;&#2503; &#2438;&#2459;&#2503;&#2472;? &#2447;&#2454;&#2472;&#2439; &#2535;&#2535;&#2535; &#2472;&#2478;&#2509;&#2476;&#2480;&#2503; &#2453;&#2482; &#2453;&#2480;&#2497;&#2472;&#2404; &#2447;&#2439; &#2451;&#2527;&#2503;&#2476;&#2488;&#2494;&#2439;&#2463; &#2460;&#2480;&#2497;&#2480;&#2495; &#2488;&#2489;&#2494;&#2527;&#2468;&#2494; &#2474;&#2509;&#2480;&#2470;&#2494;&#2472; &#2453;&#2480;&#2503; &#2472;&#2494;&#2404;</span>
     </div>
     <a class="emergency-call" href="tel:999" aria-label="Call Bangladesh emergency services at 999">Call 999</a>
   </div>
@@ -76,14 +78,18 @@
             </div>
             <button id="regionReportButton" class="secondary-btn">Report in selected area</button>
           </div>
-          <div class="map-stage" aria-label="Dhaka region safety map">
-            <button class="region-node active" data-region="Dhanmondi" style="--x: 38%; --y: 58%">Dhanmondi</button>
-            <button class="region-node" data-region="Gulshan" style="--x: 60%; --y: 30%">Gulshan</button>
-            <button class="region-node" data-region="Motijheel" style="--x: 64%; --y: 62%">Motijheel</button>
-            <button class="region-node" data-region="Mirpur" style="--x: 28%; --y: 28%">Mirpur</button>
-            <button class="region-node" data-region="Uttara" style="--x: 46%; --y: 12%">Uttara</button>
-            <div class="map-river" aria-hidden="true"></div>
+          <div class="map-toolbar" aria-label="Map region filters">
+            <button class="map-filter active" data-map-region="all">All regions</button>
+            <button class="map-filter" data-map-region="Dhanmondi">Dhanmondi</button>
+            <button class="map-filter" data-map-region="Gulshan">Gulshan</button>
+            <button class="map-filter" data-map-region="Motijheel">Motijheel</button>
+            <button class="map-filter" data-map-region="Mirpur">Mirpur</button>
+            <button class="map-filter" data-map-region="Uttara">Uttara</button>
           </div>
+          <div id="publicMap" class="leaflet-map map-stage" aria-label="Detailed Dhaka safety map">
+            <div class="map-fallback">Loading detailed street map. If tiles do not appear, check your internet connection.</div>
+          </div>
+          <p class="map-note">Map tiles and street data are provided by OpenStreetMap contributors. Public incidents are generalized; private submissions are not mapped.</p>
           <div id="selectedRegionSummary" class="region-summary" aria-live="polite"></div>
         </article>
 
@@ -270,12 +276,12 @@
                   <span>This location is sensitive and should be generalized if published.</span>
                 </label>
               </div>
-              <div class="mini-map" aria-label="Approximate location selector">
-                <button type="button" data-region-pick="Dhanmondi">Dhanmondi</button>
-                <button type="button" data-region-pick="Gulshan">Gulshan</button>
-                <button type="button" data-region-pick="Motijheel">Motijheel</button>
-                <button type="button" data-region-pick="Mirpur">Mirpur</button>
-                <button type="button" data-region-pick="Uttara">Uttara</button>
+              <div class="location-actions">
+                <button id="useCurrentLocationButton" type="button" class="secondary-btn">Use my current location</button>
+                <span id="locationStatus" aria-live="polite">You can also click the map to place an approximate marker.</span>
+              </div>
+              <div id="reportLocationMap" class="leaflet-map mini-map" aria-label="Select approximate incident location">
+                <div class="map-fallback">Loading location map. You can still enter area and coordinates manually.</div>
               </div>
             </section>
 
@@ -494,6 +500,8 @@
     </form>
   </dialog>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="./app.js"></script>
 </body>
 </html>

@@ -1,11 +1,39 @@
 const STORAGE_KEY = "dhakaSafetyMapState.v1";
 
+const DHAKA_CENTER = [23.8103, 90.4125];
+const DHAKA_BOUNDS = [[23.66, 90.29], [23.92, 90.53]];
+
 const regions = [
-  { id: "dhanmondi", name: "Dhanmondi", center: [23.7461, 90.3742] },
-  { id: "gulshan", name: "Gulshan", center: [23.7925, 90.4078] },
-  { id: "motijheel", name: "Motijheel", center: [23.7330, 90.4172] },
-  { id: "mirpur", name: "Mirpur", center: [23.8223, 90.3654] },
-  { id: "uttara", name: "Uttara", center: [23.8759, 90.3795] }
+  {
+    id: "dhanmondi",
+    name: "Dhanmondi",
+    center: [23.7461, 90.3742],
+    boundary: [[23.762, 90.356], [23.762, 90.389], [23.735, 90.398], [23.724, 90.374], [23.739, 90.352]]
+  },
+  {
+    id: "gulshan",
+    name: "Gulshan",
+    center: [23.7925, 90.4078],
+    boundary: [[23.815, 90.397], [23.812, 90.429], [23.786, 90.433], [23.773, 90.414], [23.784, 90.392]]
+  },
+  {
+    id: "motijheel",
+    name: "Motijheel",
+    center: [23.7330, 90.4172],
+    boundary: [[23.746, 90.405], [23.744, 90.432], [23.723, 90.438], [23.715, 90.416], [23.729, 90.399]]
+  },
+  {
+    id: "mirpur",
+    name: "Mirpur",
+    center: [23.8223, 90.3654],
+    boundary: [[23.854, 90.336], [23.856, 90.388], [23.814, 90.399], [23.786, 90.368], [23.806, 90.329]]
+  },
+  {
+    id: "uttara",
+    name: "Uttara",
+    center: [23.8759, 90.3795],
+    boundary: [[23.902, 90.350], [23.904, 90.406], [23.862, 90.415], [23.846, 90.377], [23.865, 90.344]]
+  }
 ];
 
 const submissionStatuses = [
@@ -178,6 +206,12 @@ let activeStep = 0;
 let selectedSubmissionId = state.submissions[0]?.id || null;
 let evidenceDraft = [];
 let latestSubmissionRef = "";
+let publicMap = null;
+let reportLocationMap = null;
+let publicRegionLayer = null;
+let publicIncidentLayer = null;
+let reportLocationMarker = null;
+let reportAccuracyCircle = null;
 
 const els = {
   navLinks: document.querySelectorAll(".nav-link"),
@@ -203,6 +237,10 @@ const els = {
   publicIncidentList: document.getElementById("publicIncidentList"),
   publicRegionFilter: document.getElementById("publicRegionFilter"),
   selectedRegionSummary: document.getElementById("selectedRegionSummary"),
+  publicMap: document.getElementById("publicMap"),
+  reportLocationMap: document.getElementById("reportLocationMap"),
+  useCurrentLocationButton: document.getElementById("useCurrentLocationButton"),
+  locationStatus: document.getElementById("locationStatus"),
   trackForm: document.getElementById("trackForm"),
   trackingInput: document.getElementById("trackingInput"),
   trackingResult: document.getElementById("trackingResult"),
@@ -253,6 +291,207 @@ function getRegionId(name) {
   return regions.find((region) => region.name === name)?.id || "";
 }
 
+function isLeafletReady() {
+  return typeof L !== "undefined" && els.publicMap && els.reportLocationMap;
+}
+
+function addBaseTiles(map) {
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+}
+
+function getRegionByName(name) {
+  return regions.find((region) => region.name === name);
+}
+
+function getNearestRegion(lat, lng) {
+  return regions
+    .map((region) => ({
+      region,
+      distance: Math.hypot((lat - region.center[0]) * 111, (lng - region.center[1]) * 102)
+    }))
+    .sort((a, b) => a.distance - b.distance)[0]?.region;
+}
+
+function getIncidentLatLng(incident, index) {
+  const region = getRegionByName(incident.region) || regions[0];
+  const offset = ((index % 5) - 2) * 0.0025;
+  return [region.center[0] + offset, region.center[1] - offset / 2];
+}
+
+function getRegionStyle(regionName) {
+  const isSelected = selectedRegion === regionName;
+  return {
+    color: isSelected ? "#b42318" : "#0f766e",
+    weight: isSelected ? 3 : 2,
+    opacity: 0.95,
+    fillColor: isSelected ? "#fff1ef" : "#0f766e",
+    fillOpacity: isSelected ? 0.24 : 0.12
+  };
+}
+
+function initMaps() {
+  if (!isLeafletReady() || publicMap || reportLocationMap) return;
+
+  publicMap = L.map(els.publicMap, {
+    center: DHAKA_CENTER,
+    zoom: 12,
+    minZoom: 11,
+    maxBounds: DHAKA_BOUNDS,
+    scrollWheelZoom: true
+  });
+  addBaseTiles(publicMap);
+  publicRegionLayer = L.layerGroup().addTo(publicMap);
+  publicIncidentLayer = L.layerGroup().addTo(publicMap);
+
+  reportLocationMap = L.map(els.reportLocationMap, {
+    center: DHAKA_CENTER,
+    zoom: 12,
+    minZoom: 11,
+    maxBounds: DHAKA_BOUNDS,
+    scrollWheelZoom: true
+  });
+  addBaseTiles(reportLocationMap);
+  renderReportRegionLayer();
+  reportLocationMap.on("click", (event) => {
+    setReportLocation(event.latlng.lat, event.latlng.lng, "Map click", null);
+  });
+
+  renderPublicMap();
+}
+
+function renderReportRegionLayer() {
+  if (!reportLocationMap) return;
+  regions.forEach((region) => {
+    L.polygon(region.boundary, {
+      color: "#0f766e",
+      weight: 1,
+      fillColor: "#0f766e",
+      fillOpacity: 0.08
+    })
+      .bindTooltip(region.name)
+      .on("click", () => {
+        setReportLocation(region.center[0], region.center[1], `${region.name} center`, null);
+      })
+      .addTo(reportLocationMap);
+  });
+}
+
+function renderPublicMap() {
+  if (!publicMap || !publicRegionLayer || !publicIncidentLayer) return;
+  publicRegionLayer.clearLayers();
+  publicIncidentLayer.clearLayers();
+
+  regions.forEach((region) => {
+    const verifiedCount = state.publicIncidents.filter((incident) => incident.region === region.name).length;
+    const privateCount = state.submissions.filter((submission) => submission.location.region === region.name && submission.status !== "verified").length;
+    L.polygon(region.boundary, getRegionStyle(region.name))
+      .bindPopup(`<strong>${escapeHtml(region.name)}</strong><br>${verifiedCount} verified public incident${verifiedCount === 1 ? "" : "s"}<br>${privateCount} private submission${privateCount === 1 ? "" : "s"} under review`)
+      .on("click", () => {
+        selectedRegion = region.name;
+        renderDashboard();
+      })
+      .addTo(publicRegionLayer);
+  });
+
+  const visibleRegion = els.publicRegionFilter.value;
+  state.publicIncidents
+    .filter((incident) => visibleRegion === "all" || incident.region === visibleRegion)
+    .forEach((incident, index) => {
+      const marker = L.circleMarker(getIncidentLatLng(incident, index), {
+        radius: 8,
+        color: "#b42318",
+        weight: 2,
+        fillColor: "#fff1ef",
+        fillOpacity: 0.9
+      });
+      marker.bindPopup(`<strong>${escapeHtml(incident.title)}</strong><br>${escapeHtml(incident.category)}<br>${escapeHtml(incident.region)} · ${escapeHtml(incident.verificationLevel.replaceAll("_", " "))}`);
+      marker.addTo(publicIncidentLayer);
+    });
+}
+
+function focusPublicMapOnRegion(regionName) {
+  if (!publicMap) return;
+  if (regionName === "all") {
+    publicMap.fitBounds(DHAKA_BOUNDS, { padding: [18, 18] });
+    return;
+  }
+  const region = getRegionByName(regionName);
+  if (region) publicMap.fitBounds(region.boundary, { padding: [32, 32] });
+}
+
+function setReportLocation(lat, lng, source, accuracy) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const roundedLat = Number(lat.toFixed(6));
+  const roundedLng = Number(lng.toFixed(6));
+  const nearest = getNearestRegion(roundedLat, roundedLng);
+
+  els.reportForm.elements.latitude.value = roundedLat;
+  els.reportForm.elements.longitude.value = roundedLng;
+  els.reportForm.elements.locationPrecision.value = source === "Map click" || source === "Marker drag" || (accuracy && accuracy <= 100)
+    ? "approximate_marker"
+    : "landmark";
+  if (nearest) els.reportForm.elements.region.value = nearest.name;
+  if (!els.reportForm.elements.locationDescription.value.trim()) {
+    els.reportForm.elements.locationDescription.value = source === "Current location"
+      ? "Reporter-provided current location"
+      : `Approximate marker near ${nearest?.name || "Dhaka"}`;
+  }
+
+  if (reportLocationMap) {
+    const latLng = [roundedLat, roundedLng];
+    if (!reportLocationMarker) {
+      reportLocationMarker = L.marker(latLng, { draggable: true }).addTo(reportLocationMap);
+      reportLocationMarker.on("dragend", () => {
+        const markerLatLng = reportLocationMarker.getLatLng();
+        setReportLocation(markerLatLng.lat, markerLatLng.lng, "Marker drag", null);
+      });
+    } else {
+      reportLocationMarker.setLatLng(latLng);
+    }
+
+    if (reportAccuracyCircle) reportAccuracyCircle.remove();
+    if (accuracy) {
+      reportAccuracyCircle = L.circle(latLng, {
+        radius: accuracy,
+        color: "#1d4ed8",
+        fillColor: "#dbeafe",
+        fillOpacity: 0.18,
+        weight: 1
+      }).addTo(reportLocationMap);
+    }
+    reportLocationMap.setView(latLng, accuracy && accuracy <= 100 ? 17 : 15);
+  }
+
+  els.locationStatus.textContent = `${source} set: ${roundedLat}, ${roundedLng}${accuracy ? ` · accuracy about ${Math.round(accuracy)}m` : ""}.`;
+}
+
+function requestCurrentLocation() {
+  if (!navigator.geolocation) {
+    els.locationStatus.textContent = "Location access is not supported by this browser.";
+    return;
+  }
+
+  els.locationStatus.textContent = "Requesting location permission...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setReportLocation(position.coords.latitude, position.coords.longitude, "Current location", position.coords.accuracy);
+    },
+    (error) => {
+      els.locationStatus.textContent = error.code === 1
+        ? "Location permission was denied. You can still click the map or enter coordinates manually."
+        : "Unable to get your location. You can still click the map or enter coordinates manually.";
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 30000,
+      timeout: 15000
+    }
+  );
+}
+
 function generateReference() {
   const next = state.submissions.length + 1;
   return `DSM-2026-${String(next).padStart(4, "0")}`;
@@ -279,6 +518,10 @@ function setView(viewName) {
   if (viewName === "admin") renderAdmin();
   if (viewName === "dashboard") renderDashboard();
   if (viewName === "report") renderStep();
+  setTimeout(() => {
+    publicMap?.invalidateSize();
+    reportLocationMap?.invalidateSize();
+  }, 80);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -297,8 +540,8 @@ function renderDashboard() {
   document.getElementById("metricAwaitingResponse").textContent = state.submissions.filter((submission) => ["needs_reporter_response", "needs_more_evidence"].includes(submission.status)).length;
   document.getElementById("metricScoreEligible").textContent = state.publicIncidents.filter((incident) => incident.scoreEligible).length;
 
-  document.querySelectorAll(".region-node").forEach((button) => {
-    button.classList.toggle("active", button.dataset.region === selectedRegion);
+  document.querySelectorAll(".map-filter").forEach((button) => {
+    button.classList.toggle("active", button.dataset.mapRegion === (els.publicRegionFilter.value || "all"));
   });
 
   const regionIncidents = state.publicIncidents.filter((incident) => incident.region === selectedRegion);
@@ -328,6 +571,7 @@ function renderDashboard() {
       </div>
     </article>
   `).join("") : `<div class="empty-state">No verified public incidents match this filter.</div>`;
+  renderPublicMap();
 }
 
 function showReportEmergencyGate() {
@@ -364,6 +608,10 @@ function renderStep() {
   if (activeStep === 5) renderReviewPreview();
   updateContactFields();
   updateEmergencyNotice();
+  setTimeout(() => {
+    publicMap?.invalidateSize();
+    reportLocationMap?.invalidateSize();
+  }, 80);
 }
 
 function showErrors(errors) {
@@ -869,13 +1117,20 @@ function attachEvents() {
   });
   els.continueToReportButton.addEventListener("click", () => setView("report"));
 
-  document.querySelectorAll(".region-node").forEach((button) => {
+  document.querySelectorAll(".map-filter").forEach((button) => {
     button.addEventListener("click", () => {
-      selectedRegion = button.dataset.region;
+      const region = button.dataset.mapRegion;
+      els.publicRegionFilter.value = region;
+      if (region !== "all") selectedRegion = region;
+      focusPublicMapOnRegion(region);
       renderDashboard();
     });
   });
-  els.publicRegionFilter.addEventListener("change", renderDashboard);
+  els.publicRegionFilter.addEventListener("change", () => {
+    if (els.publicRegionFilter.value !== "all") selectedRegion = els.publicRegionFilter.value;
+    focusPublicMapOnRegion(els.publicRegionFilter.value);
+    renderDashboard();
+  });
 
   els.stepLinks.forEach((button) => button.addEventListener("click", () => {
     const targetStep = Number(button.dataset.step);
@@ -904,14 +1159,7 @@ function attachEvents() {
     renderEvidenceList();
   });
 
-  document.querySelectorAll("[data-region-pick]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const region = regions.find((item) => item.name === button.dataset.regionPick);
-      els.reportForm.elements.region.value = region.name;
-      els.reportForm.elements.latitude.value = region.center[0];
-      els.reportForm.elements.longitude.value = region.center[1];
-    });
-  });
+  els.useCurrentLocationButton.addEventListener("click", requestCurrentLocation);
 
   els.trackForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -966,10 +1214,14 @@ function attachEvents() {
 function init() {
   populateSelects();
   attachEvents();
+  initMaps();
   renderEvidenceList();
   renderStep();
   renderDashboard();
   renderAdmin();
+  if (!isLeafletReady()) {
+    els.locationStatus.textContent = "Interactive maps are unavailable. You can still enter location details manually.";
+  }
   if (latestSubmissionRef) els.trackingInput.value = latestSubmissionRef;
 }
 

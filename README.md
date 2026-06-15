@@ -5,8 +5,9 @@ Static MVP for the Public Crime Reporting and Emergency Assistance addendum.
 ## Included
 
 - Public dashboard with prominent 999 emergency assistance notices
+- Detailed interactive Dhaka map using Leaflet and OpenStreetMap tiles
 - Multi-step public crime report form at the report view
-- Incident details, location, evidence metadata, reporter anonymity, and consent checks
+- Incident details, map-click location selection, optional browser location access, evidence metadata, reporter anonymity, and consent checks
 - Client-side evidence validation for JPG, JPEG, PNG, WEBP, and PDF limits
 - Private submission queue separate from published public incidents
 - Reporter-safe tracking view
@@ -30,3 +31,5 @@ https://sharifalmusfique.github.io/dhk-safety-map/
 ## Notes
 
 This is a frontend prototype. It models the addendum's required product behavior, privacy separation, and review workflow, but it does not replace the required backend work for encryption, signed uploads, malware scanning, PostGIS storage, rate limiting, CAPTCHA, authentication, authorization, or production audit logging.
+
+The browser geolocation option asks for permission only when the reporter clicks "Use my current location." The app stores the returned coordinates only in the local prototype submission data.

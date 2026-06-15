@@ -337,51 +337,72 @@ a {
   line-height: 1.5;
 }
 
-.map-stage,
-.mini-map {
-  position: relative;
-  min-height: 420px;
-  overflow: hidden;
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.map-filter {
+  min-height: 36px;
+  padding: 7px 10px;
   border-radius: var(--radius);
   border: 1px solid var(--line);
-  background:
-    linear-gradient(35deg, rgba(15, 118, 110, 0.16), transparent 46%),
-    linear-gradient(125deg, transparent 30%, rgba(29, 78, 216, 0.08) 31%, transparent 46%),
-    repeating-linear-gradient(0deg, transparent 0 44px, rgba(23, 33, 43, 0.06) 45px),
-    repeating-linear-gradient(90deg, transparent 0 44px, rgba(23, 33, 43, 0.05) 45px),
-    #eef4f2;
-}
-
-.map-river {
-  position: absolute;
-  width: 160px;
-  height: 620px;
-  right: 12%;
-  top: -90px;
-  rotate: 18deg;
-  border-radius: 999px;
-  background: rgba(29, 78, 216, 0.12);
-  border: 1px solid rgba(29, 78, 216, 0.16);
-}
-
-.region-node {
-  position: absolute;
-  left: var(--x);
-  top: var(--y);
-  transform: translate(-50%, -50%);
-  z-index: 1;
-  padding: 9px 12px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(15, 118, 110, 0.28);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 26px rgba(23, 33, 43, 0.1);
+  background: var(--surface);
   cursor: pointer;
   font-weight: 800;
 }
 
-.region-node.active {
+.map-filter.active {
   background: var(--primary);
+  border-color: var(--primary);
   color: white;
+}
+
+.leaflet-map {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: #dce9e5;
+  isolation: isolate;
+}
+
+.map-stage {
+  min-height: 480px;
+}
+
+.mini-map {
+  min-height: 320px;
+  margin-top: 12px;
+}
+
+.map-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  background: var(--surface-soft);
+  z-index: -1;
+}
+
+.map-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.leaflet-popup-content {
+  line-height: 1.45;
+}
+
+.leaflet-container {
+  font-family: Inter, "Noto Sans Bengali", system-ui, sans-serif;
 }
 
 .region-summary {
@@ -646,23 +667,21 @@ a:focus-visible {
   background: #fbfcfd;
 }
 
-.mini-map {
-  min-height: 160px;
-  margin-top: 14px;
+.location-actions {
   display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 8px;
-  padding: 16px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
 }
 
-.mini-map button {
-  border: 1px solid rgba(15, 118, 110, 0.28);
-  border-radius: var(--radius);
-  background: white;
-  padding: 9px 12px;
-  cursor: pointer;
-  font-weight: 800;
+.location-actions span {
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .upload-box {
@@ -925,6 +944,10 @@ dialog::backdrop {
   .map-stage {
     min-height: 360px;
   }
+
+  .mini-map {
+    min-height: 280px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -981,9 +1004,12 @@ dialog::backdrop {
     min-height: 300px;
   }
 
-  .region-node {
-    font-size: 0.82rem;
-    padding: 8px;
+  .mini-map {
+    min-height: 260px;
+  }
+
+  .map-filter {
+    flex: 1 1 calc(50% - 8px);
   }
 
   .form-panel,
